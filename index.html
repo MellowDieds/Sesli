@@ -1,0 +1,503 @@
+<meta name='viewport' content='width=device-width, initial-scale=1'/><!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mellow - Sesli Sohbet</title>
+    <!-- Daily.co SDK -->
+    <script crossorigin src="https://unpkg.com/@daily-co/daily-js"></script>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        * { font-family: 'Inter', sans-serif; }
+        
+        body {
+            background: #1e1f22;
+            color: white;
+        }
+        
+        .server-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s;
+            background: #2B2D31;
+        }
+        
+        .server-icon:hover, .server-icon.active {
+            border-radius: 16px;
+            background: #5865F2;
+        }
+        
+        .channel-item {
+            padding: 8px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: #949BA4;
+            transition: all 0.15s;
+        }
+        
+        .channel-item:hover, .channel-item.active {
+            background: rgba(255,255,255,0.05);
+            color: white;
+        }
+        
+        .control-btn {
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            background: #2B2D31;
+            border: none;
+            color: white;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+        }
+        
+        .control-btn:hover { background: #35363c; transform: scale(1.05); }
+        .control-btn.muted { background: #ED4245; }
+        .control-btn.deafened { background: #ED4245; }
+        
+        #daily-frame {
+            width: 100%;
+            height: 600px;
+            border: none;
+            border-radius: 12px;
+            display: none;
+        }
+        
+        .hidden { display: none !important; }
+        
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #2B2D31; border-radius: 4px; }
+        
+        .fade-in { animation: fadeIn 0.3s ease-in; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    </style>
+</head>
+<body class="h-screen overflow-hidden">
+    <div class="flex h-full">
+        <!-- Sunucular -->
+        <div class="w-[72px] bg-[#1e1f22] flex flex-col items-center py-3 gap-3 border-r border-[#2B2D31]">
+            <div class="server-icon active" onclick="switchServer(this, 'Mellow')">
+                <i class="fas fa-home"></i>
+            </div>
+            <div class="w-8 h-[2px] bg-[#35363c] rounded-full"></div>
+            <div class="server-icon" onclick="switchServer(this, 'Oyun')">
+                <span class="font-bold">O</span>
+            </div>
+            <div class="server-icon" onclick="switchServer(this, 'Müzik')">
+                <span class="font-bold">M</span>
+            </div>
+            <div class="server-icon" style="background: #23A559; color: white;" onclick="addServer()">
+                <i class="fas fa-plus"></i>
+            </div>
+        </div>
+        
+        <!-- Kanallar -->
+        <div class="w-60 bg-[#2B2D31] flex flex-col">
+            <div class="h-12 border-b border-[#1e1f22] flex items-center px-4 cursor-pointer hover:bg-[#35363c]">
+                <span class="font-semibold" id="serverName">Mellow</span>
+            </div>
+            
+            <div class="flex-1 overflow-y-auto p-3">
+                <div class="text-xs font-semibold text-[#949BA4] uppercase mb-2 px-2">Metin Kanalları</div>
+                <div class="channel-item active" onclick="switchChannel(this, 'genel')">
+                    <i class="fas fa-hashtag"></i>
+                    <span>genel</span>
+                </div>
+                <div class="channel-item" onclick="switchChannel(this, 'sohbet')">
+                    <i class="fas fa-hashtag"></i>
+                    <span>sohbet</span>
+                </div>
+                
+                <div class="text-xs font-semibold text-[#949BA4] uppercase mb-2 mt-4 px-2">Ses Kanalları</div>
+                <div class="channel-item" onclick="joinVoice('Genel Ses')">
+                    <i class="fas fa-volume-high"></i>
+                    <span>Genel Ses</span>
+                    <span class="ml-auto text-xs bg-[#23A559] px-2 py-0.5 rounded-full text-white" id="live-badge">LIVE</span>
+                </div>
+            </div>
+            
+            <!-- Kullanıcı Paneli -->
+            <div class="h-14 bg-[#232428] p-2 flex items-center gap-2">
+                <div class="w-8 h-8 rounded-full bg-gradient-to-br from-[#5865F2] to-[#EB459E] flex items-center justify-center text-xs font-bold cursor-pointer">
+                    S
+                </div>
+                <div class="flex-1 min-w-0">
+                    <div class="text-sm font-semibold">Sen</div>
+                    <div class="text-xs text-[#949BA4]">Çevrimiçi</div>
+                </div>
+                <button class="control-btn w-8 h-8" onclick="toggleMute()" id="muteBtn">
+                    <i class="fas fa-microphone text-sm"></i>
+                </button>
+                <button class="control-btn w-8 h-8" onclick="toggleDeafen()" id="deafenBtn">
+                    <i class="fas fa-headphones text-sm"></i>
+                </button>
+            </div>
+        </div>
+        
+        <!-- Ana İçerik -->
+        <div class="flex-1 flex flex-col bg-[#313338]">
+            <!-- Header -->
+            <div class="h-12 border-b border-[#1e1f22] flex items-center px-4 justify-between">
+                <div class="flex items-center gap-2">
+                    <i class="fas fa-hashtag text-[#949BA4]" id="channelIcon"></i>
+                    <span class="font-semibold" id="channelName">genel</span>
+                </div>
+                <div class="flex items-center gap-4 text-[#949BA4]">
+                    <i class="fas fa-bell hover:text-white cursor-pointer"></i>
+                    <i class="fas fa-thumbtack hover:text-white cursor-pointer"></i>
+                    <i class="fas fa-users hover:text-white cursor-pointer"></i>
+                </div>
+            </div>
+            
+            <!-- İçerik -->
+            <div class="flex-1 overflow-hidden relative">
+                <!-- Metin Görünümü -->
+                <div id="chatView" class="flex flex-col h-full">
+                    <div class="flex-1 overflow-y-auto p-4 space-y-4" id="messages">
+                        <div class="flex gap-3 fade-in">
+                            <div class="w-10 h-10 rounded-full bg-[#5865F2] flex items-center justify-center flex-shrink-0">
+                                <i class="fas fa-robot text-white"></i>
+                            </div>
+                            <div>
+                                <div class="flex items-baseline gap-2">
+                                    <span class="font-semibold text-[#5865F2]">Mellow Bot</span>
+                                    <span class="text-xs text-[#949BA4]">şimdi</span>
+                                </div>
+                                <p class="text-[#DBDEE1] mt-1">👋 Hoş geldin! <strong>Genel Ses</strong> kanalına tıklayarak sesli sohbete katılabilirsin.</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="p-4">
+                        <div class="bg-[#383A40] rounded-lg flex items-center px-4 py-3 gap-3">
+                            <i class="fas fa-plus-circle text-[#23A559] cursor-pointer hover:scale-110 transition-transform"></i>
+                            <input type="text" placeholder="Mesaj gönder..." class="flex-1 bg-transparent outline-none text-white placeholder-[#949BA4]" onkeypress="sendMessage(event)">
+                            <i class="fas fa-gift text-[#949BA4] hover:text-white cursor-pointer"></i>
+                            <i class="fas fa-image text-[#949BA4] hover:text-white cursor-pointer"></i>
+                            <i class="fas fa-smile text-[#949BA4] hover:text-white cursor-pointer"></i>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Ses Görünümü -->
+                <div id="voiceView" class="hidden flex-col h-full">
+                    <div class="flex-1 overflow-y-auto p-6">
+                        <div class="max-w-5xl mx-auto">
+                            <div class="flex items-center justify-between mb-6">
+                                <div>
+                                    <h2 class="text-2xl font-bold flex items-center gap-2">
+                                        <i class="fas fa-volume-high text-[#23A559]"></i>
+                                        <span id="voiceChannelName">Genel Ses</span>
+                                    </h2>
+                                    <p class="text-[#949BA4] text-sm mt-1">Daily.co güvenli bağlantı • <span id="participantCount">0</span> katılımcı</p>
+                                </div>
+                                <button onclick="leaveVoice()" class="px-4 py-2 bg-[#ED4245] hover:bg-[#c03537] rounded-md text-sm font-medium transition-colors flex items-center gap-2">
+                                    <i class="fas fa-phone-slash"></i>
+                                    Ayrıl
+                                </button>
+                            </div>
+                            
+                            <!-- Daily.co Frame -->
+                            <div class="bg-[#2B2D31] rounded-xl p-4 shadow-2xl">
+                                <div id="daily-frame"></div>
+                                <div id="voicePlaceholder" class="text-center py-20">
+                                    <div class="w-20 h-20 bg-[#5865F2] rounded-full flex items-center justify-center mx-auto mb-4 animate-pulse">
+                                        <i class="fas fa-microphone text-3xl text-white"></i>
+                                    </div>
+                                    <h3 class="text-xl font-semibold mb-2">Sesli Sohbete Hazır</h3>
+                                    <p class="text-[#949BA4] mb-6">Mikrofon ve kamera izni vermen gerekiyor</p>
+                                    <button onclick="startDailyCall()" class="px-8 py-3 bg-[#5865F2] hover:bg-[#4752C4] rounded-md font-medium transition-all hover:scale-105 flex items-center gap-2 mx-auto">
+                                        <i class="fas fa-phone"></i>
+                                        Şimdi Katıl
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <!-- Katılımcılar Listesi -->
+                            <div class="mt-6 grid grid-cols-2 md:grid-cols-4 gap-4" id="participantsList">
+                                <!-- Dinamik olarak doldurulacak -->
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Ses Kontrolleri -->
+                    <div class="h-16 bg-[#1e1f22] border-t border-[#2B2D31] flex items-center justify-center gap-4">
+                        <button class="control-btn" onclick="toggleMute()" id="voiceMuteBtn">
+                            <i class="fas fa-microphone"></i>
+                        </button>
+                        <button class="control-btn" onclick="toggleDeafen()" id="voiceDeafenBtn">
+                            <i class="fas fa-headphones"></i>
+                        </button>
+                        <div class="w-px h-8 bg-[#35363c] mx-2"></div>
+                        <button class="control-btn" onclick="toggleScreenShare()" id="screenBtn">
+                            <i class="fas fa-desktop"></i>
+                        </button>
+                        <button class="control-btn" onclick="toggleVideo()" id="videoBtn">
+                            <i class="fas fa-video"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Toast Bildirim -->
+    <div id="toast" class="fixed bottom-4 right-4 bg-[#5865F2] text-white px-4 py-3 rounded-lg shadow-lg transform translate-y-20 opacity-0 transition-all duration-300 flex items-center gap-2 z-50">
+        <i class="fas fa-check-circle"></i>
+        <span id="toastMsg">Bildirim</span>
+    </div>
+
+    <script>
+        let isMuted = false;
+        let isDeafened = false;
+        let isScreenSharing = false;
+        let isVideoOn = false;
+        let currentCall = null;
+        let dailyRoomUrl = 'https://mellow.daily.co/o7'; // SENİN ODAN
+        
+        // Sunucu değiştir
+        function switchServer(el, name) {
+            document.querySelectorAll('.server-icon').forEach(i => i.classList.remove('active'));
+            el.classList.add('active');
+            document.getElementById('serverName').textContent = name;
+            showToast(`${name} sunucusuna geçildi`);
+        }
+        
+        // Kanal değiştir
+        function switchChannel(el, name) {
+            document.querySelectorAll('.channel-item').forEach(i => i.classList.remove('active'));
+            el.classList.add('active');
+            document.getElementById('channelName').textContent = name;
+            document.getElementById('channelIcon').className = 'fas fa-hashtag text-[#949BA4]';
+            document.getElementById('chatView').classList.remove('hidden');
+            document.getElementById('voiceView').classList.add('hidden');
+        }
+        
+        // Ses kanalına katıl
+        function joinVoice(channelName) {
+            document.querySelectorAll('.channel-item').forEach(i => i.classList.remove('active'));
+            event.currentTarget.classList.add('active');
+            
+            document.getElementById('voiceChannelName').textContent = channelName;
+            document.getElementById('channelName').textContent = channelName;
+            document.getElementById('channelIcon').className = 'fas fa-volume-high text-[#23A559]';
+            document.getElementById('chatView').classList.add('hidden');
+            document.getElementById('voiceView').classList.remove('hidden');
+            document.getElementById('voiceView').classList.add('flex');
+            showToast(`${channelName} kanalına katılındı`);
+        }
+        
+        // Ses kanalından ayrıl
+        function leaveVoice() {
+            if (currentCall) {
+                currentCall.leave();
+                currentCall.destroy();
+                currentCall = null;
+            }
+            document.getElementById('daily-frame').style.display = 'none';
+            document.getElementById('voicePlaceholder').classList.remove('hidden');
+            document.getElementById('chatView').classList.remove('hidden');
+            document.getElementById('voiceView').classList.add('hidden');
+            document.getElementById('channelName').textContent = 'genel';
+            document.getElementById('channelIcon').className = 'fas fa-hashtag text-[#949BA4]';
+            showToast('Ses kanalından ayrıldın');
+        }
+        
+        // Daily.co araması başlat
+        function startDailyCall() {
+            document.getElementById('voicePlaceholder').classList.add('hidden');
+            const frameDiv = document.getElementById('daily-frame');
+            frameDiv.style.display = 'block';
+            
+            currentCall = window.DailyIframe.createFrame(frameDiv, {
+                url: dailyRoomUrl,
+                showLeaveButton: false,
+                showFullscreenButton: true,
+                showLocalVideo: true,
+                showParticipantsBar: true,
+                theme: {
+                    colors: {
+                        background: '#2B2D31',
+                        backgroundAccent: '#1e1f22',
+                        text: '#FFFFFF'
+                    }
+                }
+            });
+            
+            // Olay dinleyicileri
+            currentCall.on('joined-meeting', (event) => {
+                showToast('Toplantıya katıldın');
+                updateParticipantCount(event.participants);
+            });
+            
+            currentCall.on('participant-joined', (event) => {
+                showToast(`${event.participant.user_name || 'Birisi'} katıldı`);
+                updateParticipantCount();
+            });
+            
+            currentCall.on('participant-left', (event) => {
+                showToast('Birisi ayrıldı');
+                updateParticipantCount();
+            });
+            
+            currentCall.join();
+        }
+        
+        // Katılımcı sayısını güncelle
+        function updateParticipantCount() {
+            if (currentCall) {
+                const participants = currentCall.participants();
+                const count = Object.keys(participants).length;
+                document.getElementById('participantCount').textContent = count;
+            }
+        }
+        
+        // Sessiz al
+        function toggleMute() {
+            isMuted = !isMuted;
+            updateMuteButtons();
+            if (currentCall) {
+                currentCall.setLocalAudio(!isMuted);
+            }
+            showToast(isMuted ? 'Mikrofon kapalı' : 'Mikrofon açık');
+        }
+        
+        // Kulaklık kapat
+        function toggleDeafen() {
+            isDeafened = !isDeafened;
+            updateDeafenButtons();
+            if (currentCall) {
+                if (isDeafened) {
+                    currentCall.setLocalAudio(false);
+                    currentCall.setLocalVideo(false);
+                } else {
+                    currentCall.setLocalAudio(!isMuted);
+                    currentCall.setLocalVideo(isVideoOn);
+                }
+            }
+            showToast(isDeafened ? 'Ses kapalı' : 'Ses açık');
+        }
+        
+        // Ekran paylaş
+        function toggleScreenShare() {
+            if (!currentCall) return;
+            isScreenSharing = !isScreenSharing;
+            if (isScreenSharing) {
+                currentCall.startScreenShare();
+                document.getElementById('screenBtn').classList.add('bg-[#23A559]');
+                showToast('Ekran paylaşımı başladı');
+            } else {
+                currentCall.stopScreenShare();
+                document.getElementById('screenBtn').classList.remove('bg-[#23A559]');
+                showToast('Ekran paylaşımı durdu');
+            }
+        }
+        
+        // Video aç/kapat
+        function toggleVideo() {
+            if (!currentCall) return;
+            isVideoOn = !isVideoOn;
+            currentCall.setLocalVideo(isVideoOn);
+            const btn = document.getElementById('videoBtn');
+            if (isVideoOn) {
+                btn.classList.add('bg-[#23A559]');
+                showToast('Kamera açık');
+            } else {
+                btn.classList.remove('bg-[#23A559]');
+                showToast('Kamera kapalı');
+            }
+        }
+        
+        // Butonları güncelle
+        function updateMuteButtons() {
+            ['muteBtn', 'voiceMuteBtn'].forEach(id => {
+                const btn = document.getElementById(id);
+                if (btn) {
+                    btn.classList.toggle('muted', isMuted);
+                    btn.innerHTML = isMuted ? '<i class="fas fa-microphone-slash"></i>' : '<i class="fas fa-microphone"></i>';
+                }
+            });
+        }
+        
+        function updateDeafenButtons() {
+            ['deafenBtn', 'voiceDeafenBtn'].forEach(id => {
+                const btn = document.getElementById(id);
+                if (btn) {
+                    btn.classList.toggle('deafened', isDeafened);
+                    btn.innerHTML = isDeafened ? '<i class="fas fa-volume-mute"></i>' : '<i class="fas fa-headphones"></i>';
+                }
+            });
+        }
+        
+        // Mesaj gönder
+        function sendMessage(e) {
+            if (e.key === 'Enter') {
+                const input = e.target;
+                const text = input.value.trim();
+                if (!text) return;
+                
+                const messages = document.getElementById('messages');
+                const msgDiv = document.createElement('div');
+                msgDiv.className = 'flex gap-3 fade-in';
+                msgDiv.innerHTML = `
+                    <div class="w-10 h-10 rounded-full bg-gradient-to-br from-[#5865F2] to-[#EB459E] flex items-center justify-center flex-shrink-0 text-xs font-bold">S</div>
+                    <div>
+                        <div class="flex items-baseline gap-2">
+                            <span class="font-semibold text-white">Sen</span>
+                            <span class="text-xs text-[#949BA4]">şimdi</span>
+                        </div>
+                        <p class="text-[#DBDEE1] mt-1">${escapeHtml(text)}</p>
+                    </div>
+                `;
+                messages.appendChild(msgDiv);
+                messages.scrollTop = messages.scrollHeight;
+                input.value = '';
+            }
+        }
+        
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        // Sunucu ekle
+        function addServer() {
+            const colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FECA57'];
+            const randomColor = colors[Math.floor(Math.random() * colors.length)];
+            const serverList = document.querySelector('.server-icon').parentElement;
+            const newServer = document.createElement('div');
+            newServer.className = 'server-icon';
+            newServer.style.background = randomColor;
+            newServer.innerHTML = '<span class="font-bold">Y</span>';
+            newServer.onclick = function() { switchServer(this, 'Yeni Sunucu'); };
+            serverList.insertBefore(newServer, serverList.lastElementChild);
+            showToast('Yeni sunucu eklendi');
+        }
+        
+        // Toast göster
+        function showToast(msg) {
+            const toast = document.getElementById('toast');
+            document.getElementById('toastMsg').textContent = msg;
+            toast.classList.remove('translate-y-20', 'opacity-0');
+            setTimeout(() => toast.classList.add('translate-y-20', 'opacity-0'), 3000);
+        }
+    </script>
+</body>
+</html>
